@@ -7,7 +7,7 @@ import 'login_screen.dart';
 import 'admin_home.dart';
 import 'teacher_home.dart';
 import 'student_home.dart';
-//hola
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
