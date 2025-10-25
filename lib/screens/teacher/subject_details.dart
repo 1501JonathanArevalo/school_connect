@@ -147,7 +147,10 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
     final _fechaEntregaController = TextEditingController(
       text: asignacion?['fechaEntrega'],
     );
-      final _linkController = TextEditingController(text: asignacion?['link']);
+    final _horaEntregaController = TextEditingController(
+      text: asignacion?['horaEntrega'] ?? '23:59',
+    );
+    final _linkController = TextEditingController(text: asignacion?['link']);
 
     showDialog(
       context: context,
@@ -188,12 +191,13 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
                       return null;
                     },
                   ),
-                                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: _linkController,
-                    decoration: InputDecoration(
-                    labelText: 'Enlace relacionado (opcional)',
-                    prefixIcon: Icon(Icons.link),
+                    decoration: const InputDecoration(
+                      labelText: 'Enlace relacionado (opcional)',
+                      prefixIcon: Icon(Icons.link),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value != null && value.isNotEmpty && !value.startsWith('http')) {
@@ -203,21 +207,49 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _fechaEntregaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Fecha de entrega (YYYY-MM-DD)',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Ingrese una fecha';
-                      }
-                      if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
-                        return 'Formato inválido';
-                      }
-                      return null;
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _fechaEntregaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Fecha (YYYY-MM-DD)',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.calendar_today),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Ingrese una fecha';
+                            }
+                            if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(value)) {
+                              return 'Formato inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _horaEntregaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Hora (HH:MM)',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.access_time),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Ingrese hora';
+                            }
+                            if (!RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$').hasMatch(value)) {
+                              return 'HH:MM';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -238,6 +270,7 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
                     _descripcionController.text,
                     _linkController.text,
                     _fechaEntregaController.text,
+                    _horaEntregaController.text,
                   );
                   Navigator.pop(context);
                 }
@@ -257,6 +290,7 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
     String descripcion,
     String link,
     String fechaEntrega,
+    String horaEntrega,
   ) async {
     final collection = FirebaseFirestore.instance
         .collection('materias')
@@ -267,7 +301,8 @@ class _BuildAssignmentsState extends State<_BuildAssignments> {
       'titulo': titulo,
       'descripcion': descripcion,
       'fechaEntrega': fechaEntrega,
-      'link': link, // Nuevo campo
+      'horaEntrega': horaEntrega,
+      'link': link,
       'fechaCreacion': FieldValue.serverTimestamp(),
     };
 
@@ -321,6 +356,8 @@ class _AssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final horaEntrega = asignacion['horaEntrega'] ?? '23:59';
+    
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: Padding(
@@ -337,19 +374,41 @@ class _AssignmentCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(asignacion['descripcion']),
             const SizedBox(height: 8),
-            Text(
-              'Fecha de entrega: ${asignacion['fechaEntrega']}',
-              style: TextStyle(color: Colors.grey[600]),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  '${asignacion['fechaEntrega']} a las $horaEntrega',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
             ),
+            if (asignacion['link'] != null && asignacion['link'].toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.link, size: 16, color: Colors.blue),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      asignacion['link'],
+                      style: const TextStyle(color: Colors.blue),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.edit),
+                  icon: const Icon(Icons.edit, color: Colors.blue),
                   onPressed: onEdit,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete),
+                  icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: onDelete,
                 ),
               ],

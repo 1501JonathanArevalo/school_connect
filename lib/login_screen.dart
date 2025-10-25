@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 
@@ -43,6 +44,16 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               if (_errorMessage.isNotEmpty)
                 Text(_errorMessage, style: const TextStyle(color: Colors.red)),
+              
+              // Botón temporal para crear documento admin
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: _createAdminDocument,
+                child: const Text(
+                  'Crear documento admin (solo primera vez)',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
             ],
           ),
         ),
@@ -79,6 +90,38 @@ String _mapErrorCodeToMessage(String code) {
       return 'Formato de email inválido';
     default:
       return 'Error de autenticación';
+  }
+}
+
+Future<void> _createAdminDocument() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _errorMessage = 'Debes iniciar sesión primero';
+      });
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+          'uid': user.uid,
+          'email': user.email,
+          'nombre': user.email?.split('@')[0] ?? 'Administrador',
+          'role': 'admin',
+          'createdAt': FieldValue.serverTimestamp(),
+          'createdBy': 'system',
+        });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✅ Documento admin creado. Recarga la página.')),
+    );
+  } catch (e) {
+    setState(() {
+      _errorMessage = 'Error al crear documento: $e';
+    });
   }
 }
 }

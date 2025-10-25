@@ -19,8 +19,9 @@ Stream<QuerySnapshot> getUsers() {
     throw Exception('Usuario no autenticado');
   }
 
+  // Consulta simple sin ordenamiento que podría requerir índices
   return _firestore.collection('users')
-      .where('createdBy', isEqualTo: userId)
+      .where('role', isNotEqualTo: 'admin')
       .snapshots();
 }
 
