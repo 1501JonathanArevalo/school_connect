@@ -162,7 +162,6 @@ class _PendingAssignmentsSection extends StatelessWidget {
                   }
 
                   if (snapshot.hasError) {
-                    print('❌ Error en tareas: ${snapshot.error}');
                     return Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text('Error: ${snapshot.error}'),
@@ -196,15 +195,10 @@ class _PendingAssignmentsSection extends StatelessWidget {
 
   Future<List<Map<String, dynamic>>> _getPendingAssignments(String userId) async {
     try {
-      print('🔍 Cargando tareas pendientes para usuario: $userId');
-      
-      // Obtener materias del estudiante
       final materiasSnapshot = await FirebaseFirestore.instance
           .collection('materias')
           .where('estudiantes', arrayContains: userId)
           .get();
-
-      print('📚 Materias encontradas: ${materiasSnapshot.docs.length}');
 
       final List<Map<String, dynamic>> allAssignments = [];
       final now = DateTime.now();
@@ -214,15 +208,11 @@ class _PendingAssignmentsSection extends StatelessWidget {
         final materiaId = materiaDoc.id;
         final materiaNombre = materiaDoc['nombre'];
         
-        print('📖 Procesando materia: $materiaNombre ($materiaId)');
-        
         final assignmentsSnapshot = await FirebaseFirestore.instance
             .collection('materias')
             .doc(materiaId)
             .collection('asignaciones')
             .get();
-
-        print('📝 Asignaciones en $materiaNombre: ${assignmentsSnapshot.docs.length}');
 
         for (var assignmentDoc in assignmentsSnapshot.docs) {
           final data = assignmentDoc.data();
@@ -230,19 +220,11 @@ class _PendingAssignmentsSection extends StatelessWidget {
             final fechaStr = data['fechaEntrega'];
             final horaStr = data['horaEntrega'] ?? '23:59';
             
-            print('📅 Procesando tarea: ${data['titulo']}');
-            print('   Fecha: $fechaStr, Hora: $horaStr');
-            
-            // Combinar fecha y hora - agregar segundos si no están
             DateTime fechaHora;
             try {
-              // Intentar parsear con formato completo
               fechaHora = DateTime.parse('$fechaStr $horaStr:00');
             } catch (e) {
-              // Si falla, intentar solo con la fecha
-              print('⚠️ Error parseando hora, usando solo fecha');
               fechaHora = DateTime.parse(fechaStr);
-              // Agregar la hora manualmente
               final horaParts = horaStr.split(':');
               fechaHora = DateTime(
                 fechaHora.year,
@@ -253,9 +235,6 @@ class _PendingAssignmentsSection extends StatelessWidget {
               );
             }
             
-            print('   Fecha parseada: $fechaHora');
-            print('   Está después de ahora: ${fechaHora.isAfter(now)}');
-            
             if (fechaHora.isAfter(now)) {
               allAssignments.add({
                 ...data,
@@ -263,27 +242,18 @@ class _PendingAssignmentsSection extends StatelessWidget {
                 'materiaNombre': materiaNombre,
                 'fechaEntregaDate': fechaHora,
               });
-              print('   ✅ Tarea agregada a la lista');
-            } else {
-              print('   ❌ Tarea vencida, no se agrega');
             }
           } catch (e) {
-            print('❌ Error parsing date for assignment ${data['titulo']}: $e');
-            print('   fechaEntrega: ${data['fechaEntrega']}');
-            print('   horaEntrega: ${data['horaEntrega']}');
+            // Error silencioso
           }
         }
       }
 
-      // Ordenar por fecha de entrega
       allAssignments.sort((a, b) => 
         a['fechaEntregaDate'].compareTo(b['fechaEntregaDate']));
 
-      print('✅ Total de tareas pendientes: ${allAssignments.length}');
-
       return allAssignments;
     } catch (e) {
-      print('❌ Error loading assignments: $e');
       return [];
     }
   }
@@ -684,8 +654,8 @@ class _PendingAssignmentsSection extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+        ),
+      );
   }
 }
 
@@ -759,11 +729,9 @@ class _UpcomingEventsSection extends StatelessWidget {
                     );
                   }
 
-                  // Consulta simplificada: solo filtrar por grado
                   return StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('eventos')
-                        .where('grados', arrayContains: grado)
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -776,7 +744,6 @@ class _UpcomingEventsSection extends StatelessWidget {
                       }
 
                       if (snapshot.hasError) {
-                        print('❌ Error en eventos: ${snapshot.error}');
                         return Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -791,19 +758,11 @@ class _UpcomingEventsSection extends StatelessWidget {
                                 'Error al cargar eventos',
                                 style: TextStyle(color: Colors.red.shade700),
                               ),
-                              Text(
-                                '${snapshot.error}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
                             ],
                           ),
                         );
                       }
-
+                      
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return const Padding(
                           padding: EdgeInsets.all(16),
@@ -824,9 +783,21 @@ class _UpcomingEventsSection extends StatelessWidget {
                         );
                       }
 
-                      // Filtrar eventos futuros en el cliente
+                      // Filtrar por grado en el cliente
+                      final eventosPorGrado = snapshot.data!.docs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final grados = data['grados'] as List;
+                        
+                        final gradoInt = grado is int ? grado : int.tryParse(grado.toString());
+                        return grados.any((g) {
+                          final gInt = g is int ? g : int.tryParse(g.toString());
+                          return gInt == gradoInt;
+                        });
+                      }).toList();
+
+                      // Filtrar eventos futuros
                       final now = DateTime.now();
-                      final eventosFuturos = snapshot.data!.docs.where((doc) {
+                      final eventosFuturos = eventosPorGrado.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
                         final fecha = (data['fecha'] as Timestamp).toDate();
                         return fecha.isAfter(now);
@@ -869,115 +840,122 @@ class _UpcomingEventsSection extends StatelessWidget {
                           final hora = data['hora'] ?? '';
                           final lugar = data['lugar'] ?? '';
                           
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.green.shade200),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        DateFormat('d').format(fecha),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        DateFormat('MMM').format(fecha).toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        data['titulo'],
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      if (data['descripcion'] != null && 
-                                          data['descripcion'].toString().isNotEmpty)
+                          return InkWell(
+                            onTap: () => _showEventDetailDialog(context, data, fecha),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
                                         Text(
-                                          data['descripcion'],
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
+                                          DateFormat('d').format(fecha),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      if (hora.isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.access_time, 
-                                              size: 12, 
-                                              color: Colors.grey.shade600,
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              hora,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                          ],
+                                        Text(
+                                          DateFormat('MMM').format(fecha).toUpperCase(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                          ),
                                         ),
                                       ],
-                                      if (lugar.isNotEmpty) ...[
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          data['titulo'],
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
                                         const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.location_on, 
-                                              size: 12, 
+                                        if (data['descripcion'] != null && 
+                                            data['descripcion'].toString().isNotEmpty)
+                                          Text(
+                                            data['descripcion'],
+                                            style: TextStyle(
+                                              fontSize: 12,
                                               color: Colors.grey.shade600,
                                             ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text(
-                                                lugar,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        if (hora.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.access_time, 
+                                                size: 12, 
+                                                color: Colors.grey.shade600,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                hora,
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey.shade600,
                                                 ),
-                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          ),
+                                        ],
+                                        if (lugar.isNotEmpty) ...[
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.location_on, 
+                                                size: 12, 
+                                                color: Colors.grey.shade600,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  lugar,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey.shade600,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }).toList(),
@@ -991,6 +969,418 @@ class _UpcomingEventsSection extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _showEventDetailDialog(
+    BuildContext context,
+    Map<String, dynamic> data,
+    DateTime fecha,
+  ) {
+    final hora = data['hora'] ?? 'Todo el día';
+    final lugar = data['lugar'] ?? 'No especificado';
+    final descripcion = data['descripcion'] ?? '';
+    final now = DateTime.now();
+    final diasHasta = fecha.difference(now).inDays;
+
+    // Obtener el ID del evento desde el contexto del StreamBuilder
+    String? eventoId;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('eventos')
+            .where('titulo', isEqualTo: data['titulo'])
+            .snapshots(),
+        builder: (context, eventSnapshot) {
+          if (eventSnapshot.hasData && eventSnapshot.data!.docs.isNotEmpty) {
+            eventoId = eventSnapshot.data!.docs.first.id;
+          }
+
+          return StreamBuilder<DocumentSnapshot>(
+            stream: eventoId != null 
+                ? FirebaseFirestore.instance
+                    .collection('notificaciones_eventos')
+                    .doc('${FirebaseAuth.instance.currentUser!.uid}_$eventoId')
+                    .snapshots()
+                : null,
+            builder: (context, notifSnapshot) {
+              final tieneNotificacion = notifSnapshot.hasData && notifSnapshot.data!.exists;
+
+              return Dialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header con ícono
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.event, color: Colors.green.shade700, size: 28),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Evento Escolar',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Título del evento
+                        Text(
+                          data['titulo'],
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Badge de tiempo restante
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: diasHasta <= 3 
+                                ? Colors.orange.shade50 
+                                : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: diasHasta <= 3 
+                                  ? Colors.orange.shade200 
+                                  : Colors.blue.shade200,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                diasHasta <= 3 
+                                    ? Icons.warning_amber 
+                                    : Icons.info_outline,
+                                size: 20,
+                                color: diasHasta <= 3 
+                                    ? Colors.orange.shade700 
+                                    : Colors.blue.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                diasHasta == 0 
+                                    ? '¡Hoy!' 
+                                    : diasHasta == 1 
+                                        ? 'Mañana' 
+                                        : 'En $diasHasta días',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: diasHasta <= 3 
+                                      ? Colors.orange.shade700 
+                                      : Colors.blue.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        
+                        // Botón de notificación
+                        if (eventoId != null && diasHasta >= 0)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            child: Material(
+                              color: tieneNotificacion 
+                                  ? Colors.purple.shade50 
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => _toggleNotificacion(
+                                  context,
+                                  eventoId!,
+                                  data['titulo'],
+                                  fecha,
+                                  tieneNotificacion,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        tieneNotificacion 
+                                            ? Icons.notifications_active 
+                                            : Icons.notifications_outlined,
+                                        color: tieneNotificacion 
+                                            ? Colors.purple.shade700 
+                                            : Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              tieneNotificacion 
+                                                  ? 'Notificación activada' 
+                                                  : 'Activar recordatorio',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                color: tieneNotificacion 
+                                                    ? Colors.purple.shade700 
+                                                    : Colors.grey.shade800,
+                                              ),
+                                            ),
+                                            Text(
+                                              tieneNotificacion
+                                                  ? 'Recibirás un recordatorio el día del evento'
+                                                  : 'Te recordaremos el día del evento',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        tieneNotificacion 
+                                            ? Icons.check_circle 
+                                            : Icons.add_circle_outline,
+                                        color: tieneNotificacion 
+                                            ? Colors.purple.shade700 
+                                            : Colors.grey.shade600,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        
+                        // Fecha y hora
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Fecha:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 26),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    DateFormat('EEEE, d \'de\' MMMM yyyy').format(fecha),
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Hora:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 26),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    hora,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  const Icon(Icons.location_on, size: 18, color: Colors.grey),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Lugar:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 26),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    lugar,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        if (descripcion.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Descripción:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Text(
+                              descripcion,
+                              style: const TextStyle(fontSize: 15, height: 1.5),
+                            ),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 24),
+                        
+                        // Botón de cerrar
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cerrar',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleNotificacion(
+    BuildContext context,
+    String eventoId,
+    String eventoTitulo,
+    DateTime fechaEvento,
+    bool tieneNotificacion,
+  ) async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final docId = '${userId}_$eventoId';
+
+    try {
+      if (tieneNotificacion) {
+        // Eliminar notificación
+        await FirebaseFirestore.instance
+            .collection('notificaciones_eventos')
+            .doc(docId)
+            .delete();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.notifications_off, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Recordatorio desactivado'),
+              ],
+            ),
+            backgroundColor: Colors.grey,
+          ),
+        );
+      } else {
+        // Crear notificación
+        await FirebaseFirestore.instance
+            .collection('notificaciones_eventos')
+            .doc(docId)
+            .set({
+              'userId': userId,
+              'eventoId': eventoId,
+              'eventoTitulo': eventoTitulo,
+              'fechaEvento': Timestamp.fromDate(fechaEvento),
+              'fechaCreacion': FieldValue.serverTimestamp(),
+              'notificado': false,
+            });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.notifications_active, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('¡Recordatorio activado! Te avisaremos el ${DateFormat('d/MM/yyyy').format(fechaEvento)}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.purple,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
 

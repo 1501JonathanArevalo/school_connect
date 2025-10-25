@@ -87,7 +87,6 @@ class _TeacherEventsTab extends StatelessWidget {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('eventos')
-                .where('creadoPor', isEqualTo: teacherId)
                 .orderBy('fecha', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
@@ -95,7 +94,11 @@ class _TeacherEventsTab extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final eventos = snapshot.data!.docs;
+              // Filtrar eventos creados por este profesor o sin creador
+              final eventos = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return !data.containsKey('creadoPor') || data['creadoPor'] == teacherId;
+              }).toList();
 
               if (eventos.isEmpty) {
                 return const Center(
@@ -122,6 +125,7 @@ class _TeacherEventsTab extends StatelessWidget {
                   final fecha = (data['fecha'] as Timestamp).toDate();
                   final ahora = DateTime.now();
                   final esPasado = fecha.isBefore(ahora);
+                  final esCreador = data['creadoPor'] == teacherId;
 
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -155,11 +159,24 @@ class _TeacherEventsTab extends StatelessWidget {
                           ],
                         ),
                       ),
-                      title: Text(
-                        data['titulo'],
-                        style: TextStyle(
-                          decoration: esPasado ? TextDecoration.lineThrough : null,
-                        ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              data['titulo'],
+                              style: TextStyle(
+                                decoration: esPasado ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                          ),
+                          if (!esCreador)
+                            const Chip(
+                              label: Text('Admin', style: TextStyle(fontSize: 10)),
+                              backgroundColor: Colors.orange,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                        ],
                       ),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +221,7 @@ class _TeacherEventsTab extends StatelessWidget {
                             ),
                         ],
                       ),
-                      trailing: Row(
+                      trailing: esCreador ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
@@ -216,7 +233,7 @@ class _TeacherEventsTab extends StatelessWidget {
                             onPressed: () => _deleteEvent(context, evento),
                           ),
                         ],
-                      ),
+                      ) : null,
                     ),
                   );
                 },
