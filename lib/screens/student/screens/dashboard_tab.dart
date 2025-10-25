@@ -4,6 +4,26 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+// Función global para generar color único por materia
+MaterialColor getMateriaColor(String materiaNombre) {
+  final hash = materiaNombre.hashCode;
+  final colors = [
+    Colors.blue,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal,
+    Colors.indigo,
+    Colors.pink,
+    Colors.amber,
+    Colors.cyan,
+    Colors.deepOrange,
+    Colors.lime,
+    Colors.deepPurple,
+  ];
+  return colors[hash.abs() % colors.length];
+}
+
 class DashboardTab extends StatelessWidget {
   final String userId;
 
@@ -16,8 +36,7 @@ class DashboardTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: 20),
+          // Tarjeta de bienvenida eliminada
           // Layout responsive: columnas en pantallas grandes, filas en móviles
           LayoutBuilder(
             builder: (context, constraints) {
@@ -60,58 +79,6 @@ class DashboardTab extends StatelessWidget {
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade400, Colors.blue.shade600],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .snapshots(),
-          builder: (context, snapshot) {
-            final nombre = snapshot.hasData 
-                ? snapshot.data!['nombre'] ?? 'Estudiante'
-                : 'Estudiante';
-            
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '¡Hola, $nombre!',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  DateFormat('EEEE, d \'de\' MMMM yyyy').format(DateTime.now()),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
       ),
     );
   }
@@ -285,38 +252,48 @@ class _PendingAssignmentsSection extends StatelessWidget {
       timeLabel = '$daysUntilDue días';
     }
 
+    // Obtener color de la materia usando la función global
+    final materiaColor = getMateriaColor(assignment['materiaNombre']);
+    final backgroundColor = isPastDue 
+        ? Colors.grey.shade200 
+        : isUrgent 
+            ? Colors.red.shade50 
+            : materiaColor.shade50;
+    
+    final borderColor = isPastDue
+        ? Colors.grey.shade400
+        : isUrgent 
+            ? Colors.red.shade200 
+            : materiaColor.shade200;
+
+    final iconColor = isPastDue 
+        ? Colors.grey 
+        : isUrgent 
+            ? Colors.red 
+            : materiaColor;
+
     return InkWell(
       onTap: () => _showAssignmentDetailDialog(context, assignment, fechaEntrega),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isPastDue 
-              ? Colors.grey.shade200 
-              : isUrgent 
-                  ? Colors.red.shade50 
-                  : Colors.grey.shade50,
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isPastDue
-                ? Colors.grey.shade400
-                : isUrgent 
-                    ? Colors.red.shade200 
-                    : Colors.grey.shade200,
-          ),
+          border: Border.all(color: borderColor, width: 1.5),
         ),
         child: Column(
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: isPastDue 
-                      ? Colors.grey 
-                      : isUrgent 
-                          ? Colors.red 
-                          : Colors.blue,
+                // Indicador de color de materia
+                Container(
+                  width: 4,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: iconColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -332,11 +309,21 @@ class _PendingAssignmentsSection extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        assignment['materiaNombre'],
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
+                      // Chip de materia con color
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: materiaColor.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: materiaColor.shade300),
+                        ),
+                        child: Text(
+                          assignment['materiaNombre'],
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: materiaColor.shade900,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
@@ -349,7 +336,7 @@ class _PendingAssignmentsSection extends StatelessWidget {
                         ? Colors.grey 
                         : isUrgent 
                             ? Colors.red 
-                            : Colors.blue,
+                            : materiaColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -366,7 +353,8 @@ class _PendingAssignmentsSection extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.schedule, size: 14, color: Colors.grey),
+                const SizedBox(width: 16),
+                Icon(Icons.schedule, size: 14, color: Colors.grey.shade600),
                 const SizedBox(width: 4),
                 Text(
                   'Entrega: ${DateFormat('d/MM/yyyy').format(fechaEntrega)} a las ${DateFormat('HH:mm').format(fechaEntrega)}',
@@ -967,8 +955,8 @@ class _UpcomingEventsSection extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+        ),
+      );
   }
 
   void _showEventDetailDialog(
@@ -1309,8 +1297,8 @@ class _UpcomingEventsSection extends StatelessWidget {
             },
           );
         },
-      ),
-    );
+        ),
+      );
   }
 
   Future<void> _toggleNotificacion(
