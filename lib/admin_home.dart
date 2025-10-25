@@ -21,14 +21,6 @@ class _AdminHomeState extends State<AdminHome> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final Random _random = Random();
 
-  String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return 'Fecha desconocida';
-    try {
-      return DateFormat('dd/MM/yyyy HH:mm').format(timestamp.toDate());
-    } catch (e) {
-      return 'Fecha desconocida';
-    }
-  }
 
   // Función para convertir datos de Firestore de forma segura
   Map<String, dynamic> _cleanUserData(Map<String, dynamic> user) {

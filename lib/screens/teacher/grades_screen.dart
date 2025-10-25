@@ -1,10 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:school_connect/auth_service.dart';
-import 'package:school_connect/login_screen.dart';
 import 'subjects_screen.dart';
-import 'dart:html' as html;
 
 class GradesScreen extends StatelessWidget {
   final String teacherId;
@@ -385,20 +381,3 @@ class GradesScreen extends StatelessWidget {
   }
 }
 
-void _cerrarSesion(BuildContext context, AuthService authService) async {
-  try {
-    await authService.signOut();
-    if (kIsWeb) {
-      html.window.location.reload();
-    } else {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => LoginScreen()),
-        (route) => false,
-      );
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error al cerrar sesión: $e')),
-    );
-  }
-}

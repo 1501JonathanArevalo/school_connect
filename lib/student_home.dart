@@ -10,7 +10,6 @@ import 'package:school_connect/screens/student/screens/schedule_tab.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:html' as html;
-import 'package:school_connect/screens/student/screens/dashboard_tab.dart'; // Importar para usar la función global
 
 class StudentHome extends StatefulWidget {
   const StudentHome({super.key});
