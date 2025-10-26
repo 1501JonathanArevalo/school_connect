@@ -39,3 +39,13 @@ void showAssignmentDetails(BuildContext context, Map<String, dynamic> asignacion
     ),
   );
 }
+
+String formatDate(dynamic fecha) {
+  if (fecha == null) {
+    return '';
+  }
+  if (fecha is DateTime) {
+    return fecha.toLocal().toString();
+  }
+  return fecha.toString();
+}

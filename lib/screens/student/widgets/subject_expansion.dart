@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:school_connect/screens/student/widgets/materials_section.dart';
 import 'package:school_connect/screens/student/widgets/assignments_section.dart';
-import 'package:school_connect/screens/student/utilities.dart';
+
 
 class SubjectExpansion extends StatelessWidget {
   final Map<String, dynamic> materia;
   final String materiaId;
+  
+  static const boldStyle = TextStyle(fontWeight: FontWeight.bold);
   
   const SubjectExpansion({
     super.key,

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:school_connect/auth_service.dart';
+import 'widgets/schedule_selector.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
+import '../../services/auth_navigation_service.dart';
+import '../../services/schedule_service.dart';
 
 class SubjectForm extends StatefulWidget {
-  final AuthService authService;
+  final AuthService? authService;
 
-  const SubjectForm({super.key, required this.authService});
+  const SubjectForm({super.key, this.authService});
 
   @override
   State<SubjectForm> createState() => _SubjectFormState();
@@ -441,15 +446,19 @@ class _SubjectFormState extends State<SubjectForm> {
     String? selectedProfesor = materia != null
         ? (materia.data() as Map)['profesorId']
         : null;
+    
+    List<String> selectedSchedules = materia != null
+        ? List<String>.from((materia.data() as Map)['horarios'] ?? [])
+        : [];
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusLarge)),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            padding: const EdgeInsets.all(24),
+            constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
+            padding: const EdgeInsets.all(AppSizes.paddingLarge),
             child: Form(
               key: formKey,
               child: SingleChildScrollView(
@@ -464,7 +473,7 @@ class _SubjectFormState extends State<SubjectForm> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.purple.shade100,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                           ),
                           child: Icon(
                             Icons.book,
@@ -484,7 +493,7 @@ class _SubjectFormState extends State<SubjectForm> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSizes.paddingLarge),
 
                     // Nombre de la materia
                     TextFormField(
@@ -494,7 +503,7 @@ class _SubjectFormState extends State<SubjectForm> {
                         hintText: 'Ej: Matemáticas, Español, Ciencias',
                         prefixIcon: const Icon(Icons.book_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                         ),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -530,7 +539,7 @@ class _SubjectFormState extends State<SubjectForm> {
                             labelText: 'Grado',
                             prefixIcon: const Icon(Icons.school),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                             ),
                             filled: true,
                             fillColor: Colors.grey.shade50,
@@ -541,7 +550,13 @@ class _SubjectFormState extends State<SubjectForm> {
                               child: Text('Grado $grado'),
                             );
                           }).toList(),
-                          onChanged: (value) => setState(() => selectedGrado = value),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedGrado = value;
+                              // Limpiar horarios cuando cambia el grado
+                              selectedSchedules = [];
+                            });
+                          },
                           validator: (value) =>
                               value == null ? 'Seleccione un grado' : null,
                         );
@@ -566,7 +581,7 @@ class _SubjectFormState extends State<SubjectForm> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                               border: Border.all(color: Colors.orange.shade200),
                             ),
                             child: Row(
@@ -590,7 +605,7 @@ class _SubjectFormState extends State<SubjectForm> {
                             labelText: 'Profesor Asignado',
                             prefixIcon: const Icon(Icons.person),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                             ),
                             filled: true,
                             fillColor: Colors.grey.shade50,
@@ -608,7 +623,33 @@ class _SubjectFormState extends State<SubjectForm> {
                         );
                       },
                     ),
-                    const SizedBox(height: 24),
+                    
+                    const SizedBox(height: 20),
+
+                    // Selector de horarios
+                    if (selectedGrado != null)
+                      ScheduleSelector(
+                        grado: selectedGrado!,
+                        initialSchedules: selectedSchedules,
+                        excludeMateriaId: materia?.id,
+                        onScheduleSelected: (schedules) {
+                          setState(() => selectedSchedules = schedules);
+                        },
+                      ),
+
+                    if (selectedSchedules.isEmpty && selectedGrado != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Seleccione al menos un horario',
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: AppSizes.paddingLarge),
 
                     // Botones
                     Row(
@@ -626,22 +667,39 @@ class _SubjectFormState extends State<SubjectForm> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () async {
-                              if (formKey.currentState!.validate()) {
+                              if (formKey.currentState!.validate() && 
+                                  selectedSchedules.isNotEmpty) {
+                                // Validar horarios antes de guardar
+                                final isValid = await ScheduleService.validateSchedules(
+                                  selectedSchedules,
+                                  selectedGrado!,
+                                  excludeMateriaId: materia?.id,
+                                );
+
+                                if (!isValid) {
+                                  AuthNavigationService.showErrorSnackBar(
+                                    context,
+                                    'Algunos horarios están ocupados. Por favor, seleccione otros.',
+                                  );
+                                  return;
+                                }
+
                                 await _saveSubject(
                                   context,
                                   materia,
                                   nombreController.text.trim(),
                                   selectedGrado!,
                                   selectedProfesor!,
+                                  selectedSchedules,
                                 );
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF7B5FCE),
+                              backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
                               ),
                             ),
                             child: Text(materia == null ? 'Crear' : 'Guardar'),
@@ -655,7 +713,7 @@ class _SubjectFormState extends State<SubjectForm> {
             ),
           ),
         ),
-        )
+        ),
       );
   }
 
@@ -665,8 +723,20 @@ class _SubjectFormState extends State<SubjectForm> {
     String nombre,
     String grado,
     String profesorId,
+    List<String> horarios,
   ) async {
     try {
+      // Validar que haya horarios
+      if (horarios.isEmpty) {
+        if (context.mounted) {
+          AuthNavigationService.showErrorSnackBar(
+            context,
+            'Debe seleccionar al menos un horario',
+          );
+        }
+        return;
+      }
+
       // Obtener estudiantes del grado
       final estudiantesSnapshot = await _firestore
           .collection('users')
@@ -681,6 +751,7 @@ class _SubjectFormState extends State<SubjectForm> {
         'grado': grado,
         'profesorId': profesorId,
         'estudiantes': estudiantesIds,
+        'horarios': horarios,
         'actualizadoEn': FieldValue.serverTimestamp(),
       };
 
@@ -691,29 +762,23 @@ class _SubjectFormState extends State<SubjectForm> {
         await materia.reference.update(data);
       }
 
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(materia == null ? 'Materia creada' : 'Materia actualizada'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      if (context.mounted) {
+        Navigator.pop(context);
+        AuthNavigationService.showSuccessSnackBar(
+          context,
+          materia == null 
+              ? '✅ Materia creada con ${horarios.length} horarios' 
+              : '✅ Materia actualizada',
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      print('Error guardando materia: $e');
+      if (context.mounted) {
+        AuthNavigationService.showErrorSnackBar(
+          context,
+          '❌ Error: $e',
+        );
+      }
     }
   }
 

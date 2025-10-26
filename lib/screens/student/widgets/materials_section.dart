@@ -8,6 +8,24 @@ class MaterialsSection extends StatelessWidget {
   
   const MaterialsSection({super.key, required this.materiaId});
 
+  Icon getFileIcon(String formato) {
+    switch (formato.toLowerCase()) {
+      case 'pdf':
+        return const Icon(Icons.picture_as_pdf, color: Colors.red);
+      case 'doc':
+      case 'docx':
+        return const Icon(Icons.description, color: Colors.blue);
+      case 'xls':
+      case 'xlsx':
+        return const Icon(Icons.table_chart, color: Colors.green);
+      case 'ppt':
+      case 'pptx':
+        return const Icon(Icons.slideshow, color: Colors.orange);
+      default:
+        return const Icon(Icons.insert_drive_file);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
